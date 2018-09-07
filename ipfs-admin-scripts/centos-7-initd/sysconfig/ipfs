@@ -1,0 +1,24 @@
+# =============================================================================
+# @file    /etc/sysconfig/ipfs
+# @brief   Customization variables file for IPFS on CentOS 7
+# @author  Michael Hucka <mhucka@caltech.edu>
+# @website https://github.com/caltechlibrary/etdb-ipfs-mirror
+# =============================================================================
+
+# Path to the executable for the IPFS program.
+IPFS_DAEMON=/usr/local/bin/ipfs
+
+# Path to the root of the IPFS data repository.
+IPFS_PATH=/raid/ipfs
+
+# The name of your IPFS program.  Normally it's just "ipfs".
+IPFS_DAEMON="ipfs"
+
+# The user id to use for the ipfs daemon process.
+IPFS_USER="ipfsd"
+
+# The group id to use for the ipfs daemon process.
+IPFS_GROUP="ipfs"
+
+# Any additional arguments to pass to the ipfs program when running it.
+IPFS_ARGS=

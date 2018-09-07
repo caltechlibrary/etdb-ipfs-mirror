@@ -1,0 +1,137 @@
+#!/bin/bash
+# =============================================================================
+# @file    /etc/init.d/ipfs
+# @brief   Daemon initialization file for CentOS 7
+# @author  Michael Hucka <mhucka@caltech.edu>
+# @website https://github.com/caltechlibrary/etdb-ipfs-mirror
+#
+# This is an old-style initd start/stop/status control script.  It was written
+# for a CentOS 7 system, and uses initd because that's how old-school I am.
+#
+# Configuration and use:
+#  1. Save this as /etc/init.d/ipfs
+#  2. Create appropriate symlinks from /etc/rcX.d to ../init.d/ipfs
+#  3. Copy the accompanying ipfs sysconfig file to /etc/sysconfig/ipfs
+#  4. Edit the values in /etc/sysconfig/ipfs
+# =============================================================================
+
+### BEGIN INIT INFO
+# Provides:          IPFS daemon
+# Required-Start:    $local_fs $remote_fs $network $syslog $named
+# Required-Stop:     $local_fs $remote_fs $network $syslog $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts the IPFS daemon
+# Description:       Starts the IPFS daemon using the start-stop-daemon
+### END INIT INFO
+
+IPFS_DAEMON="ipfs"
+IPFS_USER="ipfsd"
+IPFS_GROUP="ipfs"
+IPFS_PATH=
+IPFS_ARGS=
+
+# All variables set before this point can be overridden by users, by setting
+# them directly in the SYSCONFIG file. Use this to explicitly override these
+# values, at your own risk.
+
+SYSCONFIG="/etc/sysconfig/ipfs"
+if [ -f "$SYSCONFIG" ]; then
+    . "$SYSCONFIG"
+fi
+
+DAEMON_NAME=$(basename "$IPFS_DAEMON")
+TMP_FILE="/tmp/$DAEMON_NAME.pid"
+PID_FILE="/var/run/$DAEMON_NAME.pid"
+LOG_FILE="/var/log/$DAEMON_NAME.log"
+
+# Exit if the package is not installed
+[ -x "$IPFS_DAEMON" ] || exit 0
+
+SYSTEMCTL_SKIP_REDIRECT=1
+. /etc/init.d/functions
+
+# Standard status codes for "status" command
+STATUS_RUNNING=0
+STATUS_NOT_RUNNING=1
+STATUS_UNKNOWN=2
+
+# Standard status codes for commands other than "status"
+STATUS_NO_ERROR=0
+STATUS_GENERIC_ERROR=1
+STATUS_INVALID_ARG=2
+STATUS_NOT_IMPLEMENTED=3
+
+is_running() {
+    PID=`pidof -o $$ -o ${PPID} -o %PPID -x $DAEMON_NAME`
+    if [ -n "${PID}" ]; then
+        return ${STATUS_RUNNING}
+    else
+        return ${STATUS_NOT_RUNNING}
+    fi
+}
+
+create_log_file() {
+    [ -f "$LOG_FILE" ] || (touch "$LOG_FILE" && chown $IPFS_USER.$IPFS_GROUP "$LOG_FILE")
+}
+
+daemon_start() {
+    if is_running; then
+        echo "${IPFS_DAEMON} is already running"
+        return ${STATUS_RUNNING}
+    else
+        echo "Starting $IPFS_DAEMON"
+        cd "$IPFS_PATH"
+        create_log_file
+        daemon --user "$IPFS_USER" --pidfile "$PID_FILE" --check $DAEMON_NAME \
+            "/usr/bin/env IPFS_PATH=\"$IPFS_PATH\" $IPFS_DAEMON daemon $IPFS_ARGS >> $LOG_FILE 2>&1 &"
+        sleep 5
+        if is_running; then
+            return ${STATUS_RUNNING}
+        else
+            echo "Unable to start $IPFS_DAEMON"
+            return ${STATUS_NOT_RUNNING}
+        fi
+    fi
+}
+
+daemon_stop() {
+    /usr/bin/env IPFS_PATH="$IPFS_PATH" $IPFS_DAEMON shutdown
+}
+
+daemon_status() {
+    if is_running; then
+        echo "${IPFS_DAEMON} (pid ${PID}) is running"
+        return ${STATUS_RUNNING}
+    else
+        echo "${IPFS_DAEMON} (pid ${PID}) is not running"
+        return ${STATUS_NOT_RUNNING}
+    fi
+}
+
+case "$1" in
+    start)
+        daemon_start
+        EXIT_STATUS=$?
+        ;;
+    stop)
+        daemon_stop
+        EXIT_STATUS=$?
+        ;;
+    restart)
+        daemon_stop
+        daemon_start
+        EXIT_STATUS=$?
+        ;;
+    status)
+        daemon_status
+        EXIT_STATUS=$?
+        ;;
+    *)
+        echo "$0: Invalid argument"
+        echo "Usage: $0 {start|stop|restart|status}"
+        EXIT_STATUS=${STATUS_INVALID_ARG}
+        ;;
+esac
+
+exit ${EXIT_STATUS}
